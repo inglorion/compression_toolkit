@@ -1,0 +1,8 @@
+This project contains example implementations of various data
+compression methods.
+
+The implementations come with tests that serve the dual purpose of
+illustrating how they can be used and verifying that they work as
+expected. These tests can be run with
+
+  cargo test --release

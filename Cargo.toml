@@ -1,0 +1,7 @@
+[package]
+name = "compression_toolkit"
+version = "0.1.0"
+authors = ["inglorion"]
+edition = "2018"
+
+[dependencies]
