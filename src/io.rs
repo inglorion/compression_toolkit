@@ -26,7 +26,7 @@ pub trait LookbackInput {
 }
 
 pub trait ReadBits {
-    fn read_bits(&mut self, nbits: usize) -> BoxResult<u32>;
+    fn read_bits(&mut self, nbits: u32) -> BoxResult<u32>;
 }
 
 pub trait RepeatOutput {
@@ -42,8 +42,8 @@ pub trait WriteBits {
 
 pub struct BitReader<'a> {
     input: &'a mut dyn std::io::Read,
+    have_bits: u32,
     bits: u8,
-    have_bits: u8,
 }
 
 impl<'a> BitReader<'a> {
@@ -57,7 +57,7 @@ impl<'a> BitReader<'a> {
 }
 
 impl ReadBits for BitReader<'_> {
-    fn read_bits(&mut self, nbits: usize) -> BoxResult<u32> {
+    fn read_bits(&mut self, nbits: u32) -> BoxResult<u32> {
         let mut bits = 0;
         let mut shift = 0;
         let mut need_bits = nbits;
@@ -68,10 +68,12 @@ impl ReadBits for BitReader<'_> {
                 self.have_bits = 8;
             }
             // Move bits from self.bits into bits.
-            let n = std::cmp::min(need_bits, self.have_bits.into());
+            let n = std::cmp::min(need_bits, self.have_bits);
             bits |= ((self.bits as u32) & ((1 << n) - 1)) << shift;
-            self.bits >>= n;
-            self.have_bits -= n as u8;
+            // Shifting an u8 by 8 panics in debug mode. Instead, shift as
+            // an u32, which avoids the panic.
+            self.bits = ((self.bits as u32) >> n) as u8;
+            self.have_bits -= n;
             need_bits -= n;
             shift += n;
         }

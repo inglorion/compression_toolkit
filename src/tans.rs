@@ -3,10 +3,10 @@ use crate::result::BoxResult;
 
 pub struct Decoder<'a, S> {
     /// Lookup table. Each entry is (symbol, nbits, base).
-    table: &'a [(S, u8, u16)],
+    table: &'a [(S, u8, u32)],
 
     /// Current state.
-    state: &'a (S, u8, u16),
+    state: &'a (S, u8, u32),
 }
 
 impl<S: Copy> Decoder<'_, S> {
@@ -15,14 +15,14 @@ impl<S: Copy> Decoder<'_, S> {
         // In order to be able to encode all the states, we need
         // log2(nstates) bits. The following computes that number.
         let sbits = 32 - ((self.table.len() - 1) as u32).leading_zeros();
-        let s = input.read_bits(sbits as usize)?;
+        let s = input.read_bits(sbits)?;
         self.state = &self.table[s as usize];
         Ok(self.state.0)
     }
     
     pub fn decode_sym(&mut self, input: &mut dyn ReadBits) -> BoxResult<S> {
         let (_, nbits, base) = self.state;
-        let s = *base as u32 | input.read_bits(*nbits as usize)?;
+        let s = *base | input.read_bits(*nbits as u32)?;
         self.state = &self.table[s as usize];
         Ok(self.state.0)
     }
@@ -67,12 +67,12 @@ impl Encoder {
             need_bits: 32,
         };
         encoder.origin.resize(nstates as usize, 0);
-        let mut o = 0;
+        let mut o : u16 = 0;
 	
         // Populate symbol table with coded_nbits and offset.
         for s in 0..nsyms {
             let coded_nbits = compute_coded_nbits(freqs[s], sbits);
-            let offset = (o - freqs[s]) & mask;
+            let offset = o.wrapping_sub(freqs[s]) & mask;
             encoder.symtab.push((coded_nbits, offset));
             o += freqs[s];
         }
@@ -199,7 +199,7 @@ mod tests {
 
     use crate::io::{BitReader, BitWriter};
 
-    const EXAMPLE_TABLE : &[(char, u8, u16)] = &[
+    const EXAMPLE_TABLE : &[(char, u8, u32)] = &[
         ('c', 3, 0),    // 0
         ('b', 1, 6),    // 1
         ('a', 2, 4),    // 2
@@ -210,13 +210,13 @@ mod tests {
         ('b', 1, 2),    // 7
     ];
 
-    fn tans_prev_state<S: Copy + Eq>(successor: u16,
+    fn tans_prev_state<S: Copy + Eq>(successor: u32,
                                      sym: S,
-                                     table: &[(S, u8, u16)]) -> u16 {
+                                     table: &[(S, u8, u32)]) -> u32 {
         for i in 0..table.len() {
             let (s, nbits, base) = table[i];
             if s == sym && base <= successor && (base + (1 << nbits)) > successor {
-                return i as u16;
+                return i as u32;
             }
         }
         panic!("Cannot encode symbol; table malformed.");
@@ -256,19 +256,14 @@ mod tests {
     fn encode_abbac_slow() {
         let table = EXAMPLE_TABLE;
         let s = tans_prev_state(0, 'c', table);
-        // assert_eq!(s, 3);
         assert_eq!(s, 0);
         let s = tans_prev_state(s, 'a', table);
-        // assert_eq!(s, 0);
         assert_eq!(s, 5);
         let s = tans_prev_state(s, 'b', table);
-        // assert_eq!(s, 1);
         assert_eq!(s, 4);
         let s = tans_prev_state(s, 'b', table);
-        // assert_eq!(s, 6);
         assert_eq!(s, 4);
         let s = tans_prev_state(s, 'a', table);
-        // assert_eq!(s, 5);
         assert_eq!(s, 2);
     }
 
