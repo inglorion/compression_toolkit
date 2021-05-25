@@ -31,10 +31,10 @@ impl<S: Copy> Decoder<'_, S> {
 pub struct Encoder {
     /// One entry per symbol. First item is coded_nbits, second is an offset
     /// used to get an index into the origins table.
-    symtab: Vec::<(u32, u16)>,
+    symtab: Vec::<(u32, u32)>,
 
     /// Lookup table used to find origin state.
-    origin: Vec::<u16>,
+    origin: Vec::<u32>,
 
     /// Accummulated output
     output: Vec::<u32>,
@@ -43,22 +43,22 @@ pub struct Encoder {
     bits: u32,
 
     /// Current state.
-    state: u16,
+    state: u32,
 
     /// Total number of states.
-    nstates: u16,
+    nstates: u32,
 
     /// Number of bits we need to add to bits before we have 32.
-    need_bits: u8,
+    need_bits: u32,
 }
 
 impl Encoder {
-    pub fn new(sbits: u8, freqs: &[u16]) -> Encoder {
-        let nstates = 1 << (sbits as u16);
+    pub fn new(sbits: u32, freqs: &[u32]) -> Encoder {
+        let nstates = 1 << sbits;
 	let nsyms = freqs.len();
         let mask = nstates - 1;
         let mut encoder = Encoder {
-            symtab: Vec::<(u32, u16)>::with_capacity(nsyms as usize),
+            symtab: Vec::with_capacity(nsyms),
             origin: Vec::new(),
             output: Vec::new(),
             bits: 0,
@@ -67,7 +67,7 @@ impl Encoder {
             need_bits: 32,
         };
         encoder.origin.resize(nstates as usize, 0);
-        let mut o : u16 = 0;
+        let mut o : u32 = 0;
 	
         // Populate symbol table with coded_nbits and offset.
         for s in 0..nsyms {
@@ -91,7 +91,7 @@ impl Encoder {
         encoder
     }
 
-    fn acc_bits(&mut self, bits: u32, nbits: u8) {
+    fn acc_bits(&mut self, bits: u32, nbits: u32) {
         let mut nbits = nbits;
         while nbits > 0 {
             if self.need_bits > nbits {
@@ -109,27 +109,27 @@ impl Encoder {
         }
     }
 
-    pub fn encode_first<S: Into<usize>>(&mut self, sym: S) {
-        // Set encoder state to a state that codes for S.
-        let (coded_nbits, offset) = self.symtab[sym.into()];
+    pub fn encode_first(&mut self, sym: u32) {
+        // Set encoder state to a state that codes for sym.
+        let (coded_nbits, offset) = self.symtab[sym as usize];
         let nbits = coded_nbits >> 24;
         let idx = (self.nstates >> nbits) + offset;
         self.state = self.origin[(idx & (self.nstates - 1)) as usize];
     }
 
-    pub fn encode_sym<S: Into<usize>>(&mut self, sym: S) {
+    pub fn encode_sym(&mut self, sym: u32) {
         // Get nbits and offset.
-        let (coded_nbits, offset) : (u32, u16) = self.symtab[sym.into()];
-        let nbits = (self.state as u32 + coded_nbits) >> 24;
-        self.acc_bits(self.state as u32, nbits as u8);
+        let (coded_nbits, offset) : (u32, u32) = self.symtab[sym as usize];
+        let nbits = (self.state + coded_nbits) >> 24;
+        self.acc_bits(self.state, nbits);
         // Set new state.
         let idx = ((self.state + self.nstates) >> nbits) + offset;
         self.state = self.origin[(idx & (self.nstates - 1)) as usize];
     }
 
     pub fn write(&mut self, output: &mut dyn WriteBits) -> BoxResult<()> {
-        let sbits = 16 - (self.nstates - 1).leading_zeros();
-        self.acc_bits(self.state as u32, sbits as u8);
+        let sbits = 32 - (self.nstates - 1).leading_zeros();
+        self.acc_bits(self.state, sbits);
         if self.need_bits < 32 {
             output.write_bits(self.bits >> self.need_bits, 32 - self.need_bits as u8)?;
         }
@@ -142,7 +142,7 @@ impl Encoder {
 
 /// Computes a value x such that (x + s) >> 24 gives the number
 /// of bits to read in state s.
-fn compute_coded_nbits(freq: u16, sbits: u8) -> u32 {
+fn compute_coded_nbits(freq: u32, sbits: u32) -> u32 {
     // For a symbol with no occurrences, return 0.
     if freq == 0 { return 0 }
 
@@ -153,10 +153,10 @@ fn compute_coded_nbits(freq: u16, sbits: u8) -> u32 {
     // the states for that symbol we are in, and only need to
     // encode sbits - n bits.
     //
-    // We compute n as 16 - (freq - 1).leading_zeros(), which
+    // We compute n as 32 - (freq - 1).leading_zeros(), which
     // gives us a lower bound on the number of bits that need to
     // be encode for the state transition.
-    let low_nbits = sbits - (16 - (freq - 1).leading_zeros()) as u8;
+    let low_nbits = sbits - (32 - (freq - 1).leading_zeros());
 
     // Number of successor states we can get to using freq
     // origin states and low_nbits per state.
@@ -175,7 +175,7 @@ fn compute_coded_nbits(freq: u16, sbits: u8) -> u32 {
     // The return value is computed so that adding the number
     // of the successor state, then right-shifting the result by
     // 24 results in the number of bits to encode for the state.
-    (((low_nbits + 1) as u32) << 24) - threshold as u32
+    ((low_nbits + 1) << 24) - threshold
 }
 
 
@@ -185,7 +185,7 @@ fn compute_coded_nbits(freq: u16, sbits: u8) -> u32 {
 /// Property (a) ensures that a single iteration will populate all states.
 /// Property (b) ensures that symbols with multiple occurrences will
 /// be spread roughly evenly across the state space.
-fn compute_stride(nstates: u16) -> u16 {
+fn compute_stride(nstates: u32) -> u32 {
   if nstates <= 8 {
     return 5;
   } else {
@@ -294,15 +294,15 @@ mod tests {
         //     sym | c | b | a | b | b | a | b | b |
         //   nbits | 3 | 1 | 2 | 0 | 1 | 2 | 0 | 1 |
         //    base | 0 | 6 | 4 | 1 | 4 | 0 | 0 | 2 |
-        encoder.encode_first(2 as usize);
+        encoder.encode_first(2);
         assert_eq!(encoder.state, 0);
-        encoder.encode_sym(0 as usize);
+        encoder.encode_sym(0);
         assert_eq!(encoder.state, 5);
-        encoder.encode_sym(1 as usize);
+        encoder.encode_sym(1);
         assert_eq!(encoder.state, 4);
-        encoder.encode_sym(1 as usize);
+        encoder.encode_sym(1);
         assert_eq!(encoder.state, 4);
-        encoder.encode_sym(0 as usize);
+        encoder.encode_sym(0);
         assert_eq!(encoder.state, 2);
         assert!(encoder.write(&mut writer).is_ok());
         assert!(writer.flush().is_ok());
