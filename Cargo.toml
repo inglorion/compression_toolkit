@@ -1,7 +1,9 @@
 [package]
 name = "compression_toolkit"
 version = "0.1.0"
+homepage = "http://inglorion.net/documents/essays/data_compression/"
 authors = ["inglorion"]
+license = "MIT"
 edition = "2018"
 
 [dependencies]
