@@ -1,4 +1,8 @@
 // Input/output abstractions used in compression_toolkit.
+//
+// Copyright 2021 Robbert Haarman
+//
+// SPDX-License-Identifier: MIT
 
 use crate::result::BoxResult;
 

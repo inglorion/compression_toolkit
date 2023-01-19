@@ -1,8 +1,14 @@
+compression_toolkit - implementations of various data compression methods
+
 This project contains example implementations of various data
-compression methods.
+compression methods. The compression methods are described in more
+detail at http://inglorion.net/documents/essays/data_compression/
 
 The implementations come with tests that serve the dual purpose of
 illustrating how they can be used and verifying that they work as
 expected. These tests can be run with
 
   cargo test --release
+
+Copyright 2021 Robbert Haarman. This project is covered by the MIT license.
+Please see the LICENSE file for details.

@@ -1,3 +1,9 @@
+// Table-based assymetric numeral system compression.
+//
+// Copyright 2021 Robbert Haarman
+//
+// SPDX-License-Identifier: MIT
+
 use crate::io::{ReadBits, WriteBits};
 use crate::result::BoxResult;
 

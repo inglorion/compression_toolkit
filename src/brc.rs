@@ -1,3 +1,9 @@
+// Binary Range Coder.
+//
+// Copyright 2021 Robbert Haarman
+//
+// SPDX-License-Identifier: MIT
+
 const STATE_BITS : u32 = 24;
 const PROB_BITS : u32 = 8;
 const MAX_RANGE : u32 = (1 << STATE_BITS) - 1;

@@ -1,5 +1,9 @@
 // Simple compression using backreferences.
 //
+// Copyright 2021 Robbert Haarman
+//
+// SPDX-License-Identifier: MIT
+//
 // File format: A compressed stream consists of zero or more runs.
 // Each run starts with a byte indicating the type of run and its
 // length in bytes. There are two types of runs: literal runs

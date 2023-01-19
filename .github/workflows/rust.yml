@@ -1,3 +1,7 @@
+# Copyright (c) 2021 Robbert Haarman
+#
+# SPDX-License-Identifier: MIT
+
 name: Rust
 
 on:
